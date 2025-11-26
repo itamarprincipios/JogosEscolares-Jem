@@ -76,9 +76,14 @@ try {
             // Handle multipart/form-data
             $data = $_POST;
             
-            // Validate Document Number (RG/Certidão) - simplified validation as format varies
+            // Validate Document Number (RG/Certidão)
             if (empty($data['document_number'])) {
-                throw new Exception('RG ou Certidão é obrigatório');
+                throw new Exception('Número do documento (RG ou Certidão) é obrigatório');
+            }
+            
+            // Validate Phone
+            if (empty($data['phone'])) {
+                throw new Exception('Telefone é obrigatório');
             }
             
             // Check if Document already exists
@@ -107,12 +112,13 @@ try {
             if (isset($data['id']) && $data['id']) {
                 // Update
                 $sql = "UPDATE students SET 
-                        name = ?, document_number = ?, birth_date = ?, gender = ?, age = ?";
+                        name = ?, document_number = ?, birth_date = ?, gender = ?, phone = ?, age = ?";
                 $params = [
                     $data['name'], 
                     $data['document_number'], 
                     $data['birth_date'], 
-                    $data['gender'], 
+                    $data['gender'],
+                    $data['phone'],
                     $age
                 ];
                 
@@ -144,8 +150,8 @@ try {
                     throw new Exception('Foto do aluno e foto do documento são obrigatórias');
                 }
                 
-                $sql = "INSERT INTO students (school_id, name, document_number, birth_date, gender, age, photo_path, document_path) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO students (school_id, name, document_number, birth_date, gender, phone, age, photo_path, document_path) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 
                 if (execute($sql, [
                     $schoolId,
@@ -153,6 +159,7 @@ try {
                     $data['document_number'], 
                     $data['birth_date'], 
                     $data['gender'],
+                    $data['phone'],
                     $age,
                     $photoPath,
                     $docPath

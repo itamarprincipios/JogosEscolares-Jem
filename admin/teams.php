@@ -82,7 +82,7 @@ include '../includes/sidebar.php';
         </div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeTeamModal()">Fechar</button>
-            <button class="btn btn-primary" onclick="printTeam()">🖨️ Imprimir Lista</button>
+            <button class="btn btn-primary" onclick="printTeamList()">🖨️ Imprimir Lista</button>
         </div>
     </div>
 </div>
@@ -166,6 +166,7 @@ include '../includes/sidebar.php';
 
 <script>
 let teams = [];
+let currentTeam = null;
 
 // Load filters
 async function loadFilters() {
@@ -317,6 +318,7 @@ async function viewTeamDetails(id) {
         
         if (data.success) {
             const team = data.data;
+            currentTeam = team; // Store for printing
             const genderLabels = { 'M': 'Masculino', 'F': 'Feminino', 'mixed': 'Misto' };
             
             document.getElementById('teamModalTitle').textContent = `${team.school_name} - ${team.modality_name}`;
@@ -386,8 +388,175 @@ function closeTeamModal() {
     document.getElementById('teamModal').classList.remove('active');
 }
 
-function printTeam() {
-    window.print();
+function printTeamList() {
+    if (!currentTeam) return;
+    
+    const printWindow = window.open('', '_blank');
+    const currentYear = new Date().getFullYear();
+    
+    let athletesRows = '';
+    if (currentTeam.athletes && currentTeam.athletes.length > 0) {
+        currentTeam.athletes.forEach((athlete, index) => {
+            athletesRows += `
+                <tr>
+                    <td style="text-align: center;">${index + 1}</td>
+                    <td>${athlete.name}</td>
+                    <td style="text-align: center;">${new Date(athlete.birth_date).toLocaleDateString('pt-BR')}</td>
+                    <td style="text-align: center;">${athlete.age}</td>
+                </tr>
+            `;
+        });
+    } else {
+        athletesRows = '<tr><td colspan="4" style="text-align: center;">Nenhum atleta inscrito</td></tr>';
+    }
+    
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Lista de Equipe - ${currentTeam.school_name}</title>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    margin: 0;
+                    padding: 40px;
+                    color: #000;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #000;
+                    padding-bottom: 20px;
+                }
+                .title {
+                    font-size: 24px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    margin-bottom: 10px;
+                }
+                .subtitle {
+                    font-size: 16px;
+                    margin-bottom: 5px;
+                }
+                .info-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 15px;
+                    margin-bottom: 30px;
+                    background: #f8f9fa;
+                    padding: 20px;
+                    border: 1px solid #dee2e6;
+                    border-radius: 5px;
+                }
+                .info-item {
+                    font-size: 14px;
+                }
+                .info-label {
+                    font-weight: bold;
+                    margin-right: 5px;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 50px;
+                }
+                th, td {
+                    border: 1px solid #000;
+                    padding: 8px 12px;
+                    font-size: 14px;
+                }
+                th {
+                    background-color: #f0f0f0;
+                    font-weight: bold;
+                    text-align: left;
+                }
+                .signatures {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 50px;
+                    margin-top: 100px;
+                }
+                .signature-box {
+                    border-top: 1px solid #000;
+                    padding-top: 10px;
+                    text-align: center;
+                }
+                .signature-label {
+                    font-weight: bold;
+                    margin-bottom: 5px;
+                }
+                .signature-line {
+                    height: 30px;
+                    border-bottom: 1px dotted #999;
+                    margin-bottom: 5px;
+                }
+                @media print {
+                    body { padding: 0; }
+                    .info-grid { background: none; border: 1px solid #000; }
+                    th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="title">Jogos Escolares ${currentYear}</div>
+                <div class="subtitle">Ficha de Inscrição de Equipe</div>
+            </div>
+            
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Escola:</span> ${currentTeam.school_name}
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Modalidade:</span> ${currentTeam.modality_name}
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Categoria:</span> ${currentTeam.category_name}
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Gênero:</span> ${currentTeam.gender === 'M' ? 'Masculino' : (currentTeam.gender === 'F' ? 'Feminino' : 'Misto')}
+                </div>
+            </div>
+            
+            <h3 style="margin-bottom: 15px; font-size: 18px;">Atletas Inscritos</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 50px; text-align: center;">#</th>
+                        <th>Nome do Aluno</th>
+                        <th style="width: 120px; text-align: center;">Nascimento</th>
+                        <th style="width: 80px; text-align: center;">Idade</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${athletesRows}
+                </tbody>
+            </table>
+            
+            <div class="signatures">
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Técnico Responsável</div>
+                    <div style="font-size: 12px; color: #666;">Assinatura e Carimbo</div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Auxiliar Técnico</div>
+                    <div style="font-size: 12px; color: #666;">Assinatura e Carimbo</div>
+                </div>
+            </div>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                }
+            <\/script>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
 }
 
 // Filter listeners

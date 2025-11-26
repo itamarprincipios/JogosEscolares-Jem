@@ -97,6 +97,12 @@ include '../includes/sidebar.php';
                     </select>
                 </div>
                 
+                <div class="form-group">
+                    <label class="form-label">Telefone de Contato *</label>
+                    <input type="tel" id="phone" name="phone" class="form-input" placeholder="(00) 00000-0000" required>
+                    <small style="color: var(--text-secondary);">Para emergências</small>
+                </div>
+                
                 <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
                         <label class="form-label">Foto do Aluno *</label>
@@ -174,7 +180,7 @@ function renderStudentsTable(students) {
             <td>${student.age} anos</td>
             <td>${student.gender === 'M' ? 'Masculino' : 'Feminino'}</td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="editStudent(${student.id})" style="margin-right: 0.5rem;">Editar</button>
+                <button class="btn btn-sm btn-secondary" onclick="openStudentModal(${student.id})" style="margin-right: 0.5rem;">Editar</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteStudent(${student.id})">Excluir</button>
             </td>
         `;
@@ -216,6 +222,7 @@ async function loadStudentDetails(id) {
             document.getElementById('document_number').value = s.document_number;
             document.getElementById('birthDate').value = s.birth_date;
             document.getElementById('gender').value = s.gender;
+            document.getElementById('phone').value = s.phone || '';
         }
     } catch (error) {
         console.error('Error:', error);
@@ -227,7 +234,7 @@ async function saveStudent() {
     const form = document.getElementById('studentForm');
     const formData = new FormData(form);
     
-    if (!formData.get('name') || !formData.get('document_number') || !formData.get('birth_date') || !formData.get('gender')) {
+    if (!formData.get('name') || !formData.get('document_number') || !formData.get('birth_date') || !formData.get('gender') || !formData.get('phone')) {
         Toast.error('Preencha todos os campos obrigatórios');
         return;
     }

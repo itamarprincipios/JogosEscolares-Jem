@@ -131,6 +131,25 @@ include '../includes/sidebar.php';
     </div>
 </div>
 
+<!-- Modal: Badge Print -->
+<div class="modal-overlay" id="badgeModal">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title">Crachá do Atleta</h3>
+            <button class="modal-close" onclick="closeBadgeModal()">×</button>
+        </div>
+        <div class="modal-body" style="padding: 0;">
+            <div id="badgeContent" class="badge-container">
+                <!-- Badge content will be loaded here -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeBadgeModal()">Fechar</button>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
+    </div>
+</div>
+
 <style>
 .team-card {
     background: var(--glass-bg);
@@ -158,6 +177,165 @@ include '../includes/sidebar.php';
 .status-pending { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2); }
 .status-approved { background: rgba(16, 185, 129, 0.1); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.2); }
 .status-rejected { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+
+/* Badge Styles */
+.badge-container {
+    background: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    color: #000;
+    text-align: center;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+}
+
+/* Decorative background elements */
+.badge-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 15px;
+    background: linear-gradient(90deg, #0056b3 0%, #00a859 100%); /* Blue to Green */
+    z-index: 0;
+}
+
+.badge-container::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 15px;
+    background: linear-gradient(90deg, #00a859 0%, #0056b3 100%); /* Green to Blue */
+    z-index: 0;
+}
+
+.badge-header {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0056b3; /* Blue */
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    z-index: 1;
+    border-bottom: 2px solid #00a859; /* Green underline */
+    padding-bottom: 0.5rem;
+    width: 100%;
+}
+
+.badge-photo-wrapper {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 1.5rem;
+}
+
+.badge-photo {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #0056b3; /* Blue border */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.badge-info {
+    position: relative;
+    z-index: 1;
+    background: #f8f9fa; /* Very light gray for contrast */
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    width: 100%;
+    max-width: 350px;
+    border: 1px solid #e9ecef;
+}
+
+.badge-name {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #000;
+}
+
+.badge-field {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #dee2e6; /* Light gray border */
+    font-size: 1rem;
+}
+
+.badge-field:last-child {
+    border-bottom: none;
+}
+
+.badge-label {
+    font-weight: 600;
+    color: #0056b3; /* Blue label */
+}
+
+.badge-value {
+    font-weight: 500;
+    color: #000;
+}
+
+.badge-logo {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    color: #6c757d;
+    z-index: 1;
+    font-weight: 500;
+}
+
+/* Print Styles */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    #badgeModal,
+    #badgeModal * {
+        visibility: visible;
+    }
+    
+    #badgeModal {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: white;
+    }
+    
+    .modal-header,
+    .modal-footer,
+    .modal-close {
+        display: none !important;
+    }
+    
+    .modal {
+        box-shadow: none;
+        max-width: 10cm;
+        margin: 0 auto;
+    }
+    
+    .badge-container {
+        page-break-inside: avoid;
+        min-height: 15cm;
+    }
+}
 </style>
 
 <script>
@@ -354,6 +532,7 @@ function renderAthletesTable(athletes) {
             <td>${athlete.age} anos</td>
             <td>${athlete.gender === 'M' ? 'Masc' : 'Fem'}</td>
             <td>
+                <button class="btn btn-sm btn-secondary" onclick="printBadge(${athlete.id})" style="margin-right: 0.5rem;">🖨️ Crachá</button>
                 <button class="btn btn-sm btn-danger" onclick="removeAthlete(${athlete.enrollment_id})">Remover</button>
             </td>
         `;
@@ -453,6 +632,249 @@ async function deleteTeam(id) {
         console.error('Error:', error);
         Toast.error('Erro ao excluir equipe');
     }
+}
+
+// Print badge
+async function printBadge(studentId) {
+    try {
+        // Load both student and current team info
+        const [studentRes, teamRes] = await Promise.all([
+            fetch(`../api/students-api.php?action=details&id=${studentId}`),
+            fetch(`../api/professor-teams-api.php?action=details&id=${currentTeamId}`)
+        ]);
+        
+        const studentData = await studentRes.json();
+        const teamData = await teamRes.json();
+        
+        if (studentData.success && teamData.success) {
+            const student = studentData.data;
+            const team = teamData.data;
+            const currentYear = new Date().getFullYear();
+            
+            const photoUrl = student.photo_path ? '../' + student.photo_path : 'https://ui-avatars.com/api/?name=' + encodeURIComponent(student.name) + '&size=150';
+            
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank');
+            
+            const badgeHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Crachá - ${student.name}</title>
+                    <style>
+                        body {
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            margin: 0;
+                            padding: 20px;
+                            display: flex;
+                            justify-content: center;
+                            align-items: flex-start;
+                            background: #f0f2f5;
+                        }
+                        
+                        /* Badge Styles */
+                        .badge-container {
+                            background: white;
+                            padding: 2rem;
+                            border-radius: 1rem;
+                            color: #000;
+                            text-align: center;
+                            width: 10cm;
+                            height: 15cm;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: flex-start;
+                            align-items: center;
+                            position: relative;
+                            overflow: hidden;
+                            border: 2px solid #e5e7eb;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                            box-sizing: border-box;
+                        }
+
+                        /* Decorative background elements */
+                        .badge-container::before {
+                            content: '';
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 15px;
+                            background: linear-gradient(90deg, #0056b3 0%, #00a859 100%);
+                            z-index: 0;
+                        }
+
+                        .badge-container::after {
+                            content: '';
+                            position: absolute;
+                            bottom: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 15px;
+                            background: linear-gradient(90deg, #00a859 0%, #0056b3 100%);
+                            z-index: 0;
+                        }
+
+                        .badge-header {
+                            font-size: 1.4rem;
+                            font-weight: 800;
+                            color: #0056b3;
+                            margin-bottom: 0.5rem;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                            z-index: 1;
+                            border-bottom: 2px solid #00a859;
+                            padding-bottom: 0.25rem;
+                            width: 100%;
+                        }
+
+                        .badge-photo-wrapper {
+                            position: relative;
+                            z-index: 1;
+                            margin-bottom: 0.5rem;
+                        }
+
+                        .badge-photo {
+                            width: 140px;
+                            height: 140px;
+                            border-radius: 50%;
+                            object-fit: cover;
+                            border: 4px solid #0056b3;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                        }
+
+                        .badge-info {
+                            position: relative;
+                            z-index: 1;
+                            background: #f8f9fa;
+                            padding: 1rem;
+                            border-radius: 0.5rem;
+                            width: 100%;
+                            max-width: 350px;
+                            border: 1px solid #e9ecef;
+                            box-sizing: border-box;
+                            flex: 1;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                        }
+
+                        .badge-name {
+                            font-size: 1.3rem;
+                            font-weight: 700;
+                            margin-bottom: 0.5rem;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            color: #000;
+                            line-height: 1.1;
+                        }
+
+                        .badge-field {
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 0.35rem 0;
+                            border-bottom: 1px solid #dee2e6;
+                            font-size: 0.9rem;
+                        }
+
+                        .badge-field:last-child {
+                            border-bottom: none;
+                        }
+
+                        .badge-label {
+                            font-weight: 600;
+                            color: #0056b3;
+                        }
+
+                        .badge-value {
+                            font-weight: 500;
+                            color: #000;
+                            text-align: right;
+                        }
+
+                        .badge-logo {
+                            margin-top: auto;
+                            padding-top: 0.5rem;
+                            font-size: 0.8rem;
+                            color: #6c757d;
+                            z-index: 1;
+                            font-weight: 500;
+                            position: relative;
+                            bottom: auto;
+                            left: auto;
+                            transform: none;
+                        }
+                        
+                        @media print {
+                            body {
+                                background: white;
+                                padding: 0;
+                            }
+                            .badge-container {
+                                box-shadow: none;
+                                border: 1px solid #ddd;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="badge-container">
+                        <div class="badge-header">
+                            Jogos Escolares ${currentYear}
+                        </div>
+                        <div class="badge-photo-wrapper">
+                            <img src="${photoUrl}" alt="${student.name}" class="badge-photo" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(student.name)}&size=150'">
+                        </div>
+                        <div class="badge-info">
+                            <div class="badge-name">${student.name}</div>
+                            <div class="badge-field">
+                                <span class="badge-label">Escola:</span>
+                                <span class="badge-value">${team.school_name}</span>
+                            </div>
+                            <div class="badge-field">
+                                <span class="badge-label">Modalidade:</span>
+                                <span class="badge-value">${team.modality_name}</span>
+                            </div>
+                            <div class="badge-field">
+                                <span class="badge-label">Categoria:</span>
+                                <span class="badge-value">${team.category_name}</span>
+                            </div>
+                            <div class="badge-field">
+                                <span class="badge-label">Idade:</span>
+                                <span class="badge-value">${student.age} anos</span>
+                            </div>
+                            <div class="badge-field">
+                                <span class="badge-label">Emergência:</span>
+                                <span class="badge-value">${student.phone || 'Não informado'}</span>
+                            </div>
+                        </div>
+                        <div class="badge-logo">
+                            Sistema JEM - ${currentYear}
+                        </div>
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `;
+            
+            printWindow.document.write(badgeHtml);
+            printWindow.document.close();
+            
+        } else {
+            Toast.error('Erro ao carregar dados para o crachá');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Toast.error('Erro ao gerar crachá');
+    }
+}
+
+function closeBadgeModal() {
+    document.getElementById('badgeModal').classList.remove('active');
 }
 
 // Modals
