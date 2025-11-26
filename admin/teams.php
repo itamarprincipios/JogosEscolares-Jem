@@ -1,0 +1,408 @@
+<?php
+require_once '../config/config.php';
+require_once '../includes/auth.php';
+require_once '../includes/db.php';
+
+requireAdmin();
+
+$pageTitle = 'Equipes Aprovadas';
+
+include '../includes/header.php';
+include '../includes/sidebar.php';
+?>
+
+<div class="main-content">
+    <div class="top-bar">
+        <h1 class="top-bar-title">Equipes Aprovadas</h1>
+        <div class="user-menu">
+            <div class="user-info">
+                <div class="user-name"><?php echo htmlspecialchars(getCurrentUserName()); ?></div>
+                <div class="user-role">Administrador</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="content-wrapper">
+        <!-- Filters -->
+        <div class="glass-card" style="margin-bottom: 2rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                <div class="form-group" style="margin: 0;">
+                    <label class="form-label">Escola</label>
+                    <select id="filterSchool" class="form-select">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label class="form-label">Modalidade</label>
+                    <select id="filterModality" class="form-select">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label class="form-label">Categoria</label>
+                    <select id="filterCategory" class="form-select">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin: 0;">
+                    <label class="form-label">Gênero</label>
+                    <select id="filterGender" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="M">Masculino</option>
+                        <option value="F">Feminino</option>
+                        <option value="mixed">Misto</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Teams Grid -->
+        <div id="teamsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem;">
+            <!-- Teams loaded here -->
+        </div>
+        
+        <!-- Empty State -->
+        <div id="emptyState" style="display: none; text-align: center; padding: 4rem 2rem;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">🏆</div>
+            <h3 style="color: var(--text-secondary); margin-bottom: 0.5rem;">Nenhuma equipe encontrada</h3>
+            <p style="color: var(--text-muted);">As equipes aprovadas aparecerão aqui</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Team Details -->
+<div class="modal-overlay" id="teamModal">
+    <div class="modal" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="teamModalTitle">Detalhes da Equipe</h3>
+            <button class="modal-close" onclick="closeTeamModal()">×</button>
+        </div>
+        <div class="modal-body" id="teamModalContent">
+            <!-- Content loaded dynamically -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeTeamModal()">Fechar</button>
+            <button class="btn btn-primary" onclick="printTeam()">🖨️ Imprimir Lista</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.team-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    transition: all var(--transition-base);
+    cursor: pointer;
+}
+
+.team-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+    border-color: var(--primary);
+}
+
+.team-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.team-icon {
+    font-size: 2.5rem;
+}
+
+.team-info h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+}
+
+.team-info p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.team-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.team-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.team-stat-icon {
+    font-size: 1.25rem;
+}
+
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #teamModalContent, #teamModalContent * {
+        visibility: visible;
+    }
+    #teamModalContent {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .modal-overlay, .modal-header, .modal-footer {
+        display: none !important;
+    }
+}
+</style>
+
+<script>
+let teams = [];
+
+// Load filters
+async function loadFilters() {
+    try {
+        const [schoolsRes, modalitiesRes, categoriesRes] = await Promise.all([
+            fetch('../api/schools-api.php'),
+            fetch('../api/modalities-api.php'),
+            fetch('../api/categories-api.php')
+        ]);
+        
+        const [schoolsData, modalitiesData, categoriesData] = await Promise.all([
+            schoolsRes.json(),
+            modalitiesRes.json(),
+            categoriesRes.json()
+        ]);
+        
+        if (schoolsData.success) {
+            const select = document.getElementById('filterSchool');
+            schoolsData.data.forEach(school => {
+                select.innerHTML += `<option value="${school.id}">${school.name}</option>`;
+            });
+        }
+        
+        if (modalitiesData.success) {
+            const select = document.getElementById('filterModality');
+            modalitiesData.data.forEach(mod => {
+                select.innerHTML += `<option value="${mod.id}">${mod.name}</option>`;
+            });
+        }
+        
+        if (categoriesData.success) {
+            const select = document.getElementById('filterCategory');
+            categoriesData.data.forEach(cat => {
+                select.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+            });
+        }
+    } catch (error) {
+        console.error('Error loading filters:', error);
+    }
+}
+
+// Load teams
+async function loadTeams() {
+    try {
+        const response = await fetch('../api/registrations-api.php?action=list');
+        const data = await response.json();
+        
+        if (data.success) {
+            // Filter only approved registrations
+            teams = data.data.filter(t => t.status === 'approved');
+            applyFiltersAndRender();
+        } else {
+            Toast.error('Erro ao carregar equipes');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Toast.error('Erro ao carregar equipes');
+    }
+}
+
+// Apply filters and render
+function applyFiltersAndRender() {
+    let filtered = [...teams];
+    
+    const schoolFilter = document.getElementById('filterSchool').value;
+    const modalityFilter = document.getElementById('filterModality').value;
+    const categoryFilter = document.getElementById('filterCategory').value;
+    const genderFilter = document.getElementById('filterGender').value;
+    
+    if (schoolFilter) filtered = filtered.filter(t => t.school_id == schoolFilter);
+    if (modalityFilter) filtered = filtered.filter(t => t.modality_id == modalityFilter);
+    if (categoryFilter) filtered = filtered.filter(t => t.category_id == categoryFilter);
+    if (genderFilter) filtered = filtered.filter(t => t.gender === genderFilter);
+    
+    renderTeams(filtered);
+}
+
+// Render teams
+function renderTeams(data) {
+    const grid = document.getElementById('teamsGrid');
+    const emptyState = document.getElementById('emptyState');
+    
+    grid.innerHTML = '';
+    
+    if (data.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    grid.style.display = 'grid';
+    emptyState.style.display = 'none';
+    
+    const genderLabels = { 'M': 'Masculino', 'F': 'Feminino', 'mixed': 'Misto' };
+    const genderIcons = { 'M': '♂️', 'F': '♀️', 'mixed': '⚥' };
+    const modalityIcons = {
+        'Futsal': '⚽',
+        'Vôlei': '🏐',
+        'Handebol': '🤾',
+        'Basquete': '🏀',
+        'Atletismo': '🏃',
+        'Xadrez': '♟️',
+        'Tênis de Mesa': '🏓',
+        'Judô': '🥋'
+    };
+    
+    data.forEach(team => {
+        const card = document.createElement('div');
+        card.className = 'team-card';
+        card.onclick = () => viewTeamDetails(team.id);
+        
+        card.innerHTML = `
+            <div class="team-header">
+                <div class="team-icon">${modalityIcons[team.modality_name] || '🏆'}</div>
+                <div class="team-info">
+                    <h4>${team.school_name}</h4>
+                    <p>${team.modality_name} - ${team.category_name}</p>
+                </div>
+            </div>
+            <div class="team-stats">
+                <div class="team-stat">
+                    <span class="team-stat-icon">${genderIcons[team.gender]}</span>
+                    <span>${genderLabels[team.gender]}</span>
+                </div>
+                <div class="team-stat">
+                    <span class="team-stat-icon">👥</span>
+                    <span>${team.athlete_count || 0} atletas</span>
+                </div>
+                <div class="team-stat">
+                    <span class="team-stat-icon">📅</span>
+                    <span>${new Date(team.created_at).toLocaleDateString('pt-BR')}</span>
+                </div>
+                <div class="team-stat">
+                    <span class="team-stat-icon">✅</span>
+                    <span>Aprovada</span>
+                </div>
+            </div>
+        `;
+        
+        grid.appendChild(card);
+    });
+}
+
+// View team details
+async function viewTeamDetails(id) {
+    try {
+        const response = await fetch(`../api/registrations-api.php?action=details&id=${id}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const team = data.data;
+            const genderLabels = { 'M': 'Masculino', 'F': 'Feminino', 'mixed': 'Misto' };
+            
+            document.getElementById('teamModalTitle').textContent = `${team.school_name} - ${team.modality_name}`;
+            
+            let athletesHtml = '<p style="color: var(--text-secondary);">Nenhum atleta inscrito</p>';
+            if (team.athletes && team.athletes.length > 0) {
+                athletesHtml = `
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Nome</th>
+                                    <th>CPF</th>
+                                    <th>Data Nascimento</th>
+                                    <th>Idade</th>
+                                    <th>Gênero</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                team.athletes.forEach((athlete, index) => {
+                    athletesHtml += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td><strong>${athlete.name}</strong></td>
+                            <td>${athlete.cpf}</td>
+                            <td>${new Date(athlete.birth_date).toLocaleDateString('pt-BR')}</td>
+                            <td>${athlete.age} anos</td>
+                            <td>${athlete.gender === 'M' ? 'Masculino' : 'Feminino'}</td>
+                        </tr>
+                    `;
+                });
+                
+                athletesHtml += '</tbody></table></div>';
+            }
+            
+            const content = `
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="margin-bottom: 1rem;">Informações da Equipe</h4>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius-md);">
+                        <div><strong>Escola:</strong> ${team.school_name}</div>
+                        <div><strong>Modalidade:</strong> ${team.modality_name}</div>
+                        <div><strong>Categoria:</strong> ${team.category_name}</div>
+                        <div><strong>Gênero:</strong> ${genderLabels[team.gender]}</div>
+                        <div><strong>Total de Atletas:</strong> ${team.athletes?.length || 0}</div>
+                        <div><strong>Data de Aprovação:</strong> ${new Date(team.updated_at).toLocaleDateString('pt-BR')}</div>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 1rem;">Lista de Atletas Convocados</h4>
+                    ${athletesHtml}
+                </div>
+            `;
+            
+            document.getElementById('teamModalContent').innerHTML = content;
+            document.getElementById('teamModal').classList.add('active');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Toast.error('Erro ao carregar detalhes da equipe');
+    }
+}
+
+function closeTeamModal() {
+    document.getElementById('teamModal').classList.remove('active');
+}
+
+function printTeam() {
+    window.print();
+}
+
+// Filter listeners
+['filterSchool', 'filterModality', 'filterCategory', 'filterGender'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyFiltersAndRender);
+});
+
+// Close modal on outside click
+document.getElementById('teamModal').addEventListener('click', (e) => {
+    if (e.target.id === 'teamModal') closeTeamModal();
+});
+
+// Initialize
+loadFilters();
+loadTeams();
+</script>
+
+<?php include '../includes/footer.php'; ?>

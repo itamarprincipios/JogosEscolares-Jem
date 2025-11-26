@@ -1,0 +1,73 @@
+<?php
+/**
+ * Modalities API - CRUD Operations
+ */
+
+require_once '../config/config.php';
+require_once '../includes/auth.php';
+require_once '../includes/db.php';
+
+requireAdmin();
+
+header('Content-Type: application/json');
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+try {
+    switch ($method) {
+        case 'GET':
+            $modalities = query("SELECT * FROM modalities ORDER BY name");
+            echo json_encode(['success' => true, 'data' => $modalities]);
+            break;
+            
+        case 'POST':
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            $sql = "INSERT INTO modalities (name, allows_mixed) VALUES (?, ?)";
+            
+            if (execute($sql, [$data['name'], $data['allows_mixed'] ? 1 : 0])) {
+                echo json_encode(['success' => true, 'id' => lastInsertId()]);
+            } else {
+                throw new Exception('Erro ao criar modalidade');
+            }
+            break;
+            
+        case 'PUT':
+            $data = json_decode(file_get_contents('php://input'), true);
+            
+            $sql = "UPDATE modalities SET name = ?, allows_mixed = ? WHERE id = ?";
+            
+            if (execute($sql, [$data['name'], $data['allows_mixed'] ? 1 : 0, $data['id']])) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Erro ao atualizar modalidade');
+            }
+            break;
+            
+        case 'DELETE':
+            $id = $_GET['id'] ?? null;
+            if (!$id) {
+                throw new Exception('ID não fornecido');
+            }
+            
+            // Check if modality has registrations
+            $hasRegistrations = queryOne("SELECT COUNT(*) as count FROM registrations WHERE modality_id = ?", [$id])['count'];
+            
+            if ($hasRegistrations > 0) {
+                throw new Exception('Não é possível excluir modalidade com inscrições vinculadas');
+            }
+            
+            if (execute("DELETE FROM modalities WHERE id = ?", [$id])) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Erro ao excluir modalidade');
+            }
+            break;
+            
+        default:
+            throw new Exception('Método não permitido');
+    }
+} catch (Exception $e) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+}
