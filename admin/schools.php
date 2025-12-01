@@ -302,13 +302,16 @@ async function saveSchool() {
 }
 
 // Excluir escola
-async function deleteSchool(id) {
-    if (!confirm('Tem certeza que deseja excluir esta escola? Esta ação não pode ser desfeita.')) {
+async function deleteSchool(id, force = false) {
+    if (!force && !confirm('Tem certeza que deseja excluir esta escola? Esta ação não pode ser desfeita.')) {
         return;
     }
     
     try {
-        const response = await fetch(`../api/schools-api.php?id=${id}`, {
+        let url = `../api/schools-api.php?id=${id}`;
+        if (force) url += '&force=true';
+
+        const response = await fetch(url, {
             method: 'DELETE'
         });
         
@@ -318,7 +321,14 @@ async function deleteSchool(id) {
             Toast.success('Escola excluída com sucesso!');
             loadSchools();
         } else {
-            Toast.error(result.error || 'Erro ao excluir escola');
+            // Check for dependency error
+            if (result.error && result.error.includes('DEPENDENCY_ERROR')) {
+                if (confirm('⚠️ ATENÇÃO: Esta escola possui alunos, professores ou equipes vinculados.\n\nSe você continuar:\n- Todos os alunos serão EXCLUÍDOS\n- Todas as equipes serão EXCLUÍDAS\n- Os professores serão desvinculados\n\nDeseja FORÇAR a exclusão permanentemente?')) {
+                    deleteSchool(id, true);
+                }
+            } else {
+                Toast.error(result.error || 'Erro ao excluir escola');
+            }
         }
     } catch (error) {
         console.error('Error:', error);

@@ -144,6 +144,7 @@ async function loadStudents() {
         
         if (data.success) {
             let students = data.data;
+            currentUserId = data.current_user_id;
             
             if (search) {
                 students = students.filter(s => 
@@ -172,16 +173,25 @@ function renderStudentsTable(students) {
     
     students.forEach(student => {
         const photoUrl = student.photo_path ? '../' + student.photo_path : '../assets/img/default-avatar.png';
+        const isOwner = !student.created_by_user_id || student.created_by_user_id == currentUserId;
+        
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><img src="${photoUrl}" class="student-thumb" onerror="this.src='https://ui-avatars.com/api/?name=${student.name}'"></td>
-            <td>${student.name}</td>
+            <td>
+                ${student.name}
+                ${!isOwner ? `<br><small style="color: var(--text-secondary); font-size: 0.75rem;">Criado por: ${student.professor_name || 'Outro professor'}</small>` : ''}
+            </td>
             <td>${student.document_number || '-'}</td>
             <td>${student.age} anos</td>
             <td>${student.gender === 'M' ? 'Masculino' : 'Feminino'}</td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="openStudentModal(${student.id})" style="margin-right: 0.5rem;">Editar</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteStudent(${student.id})">Excluir</button>
+                ${isOwner ? `
+                    <button class="btn btn-sm btn-secondary" onclick="openStudentModal(${student.id})" style="margin-right: 0.5rem;">Editar</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteStudent(${student.id})">Excluir</button>
+                ` : `
+                    <span class="badge badge-secondary" style="font-size: 0.75rem; background: #e5e7eb; color: #6b7280; padding: 0.25rem 0.5rem; border-radius: 4px;">Somente Leitura</span>
+                `}
             </td>
         `;
         tbody.appendChild(row);

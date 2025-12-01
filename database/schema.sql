@@ -97,13 +97,16 @@ CREATE TABLE students (
     photo_path VARCHAR(255),
     document_path VARCHAR(255),
     school_id INT NOT NULL,
+    created_by_user_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_name (name),
     INDEX idx_document (document_number),
     INDEX idx_school (school_id),
     INDEX idx_birth_date (birth_date),
-    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+    INDEX idx_created_by (created_by_user_id),
+    FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Registrations Table (Team registrations)
@@ -113,6 +116,7 @@ CREATE TABLE registrations (
     modality_id INT NOT NULL,
     category_id INT NOT NULL,
     gender ENUM('M', 'F', 'mixed') NOT NULL,
+    created_by_user_id INT,
     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
     rejection_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -121,11 +125,14 @@ CREATE TABLE registrations (
     INDEX idx_modality (modality_id),
     INDEX idx_category (category_id),
     INDEX idx_status (status),
+    INDEX idx_created_by (created_by_user_id),
     UNIQUE KEY unique_registration (school_id, modality_id, category_id, gender),
     FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE,
     FOREIGN KEY (modality_id) REFERENCES modalities(id) ON DELETE CASCADE,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- Enrollments Table (Students in Registrations)
 CREATE TABLE enrollments (

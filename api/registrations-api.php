@@ -25,11 +25,14 @@ try {
                         s.name as school_name,
                         m.name as modality_name,
                         c.name as category_name,
+                        u.name as professor_name,
+                        u.phone as professor_phone,
                         (SELECT COUNT(*) FROM enrollments e WHERE e.registration_id = r.id) as athlete_count
                     FROM registrations r
                     JOIN schools s ON r.school_id = s.id
                     JOIN modalities m ON r.modality_id = m.id
                     JOIN categories c ON r.category_id = c.id
+                    LEFT JOIN users u ON r.created_by_user_id = u.id
                     ORDER BY 
                         CASE r.status 
                             WHEN 'pending' THEN 1 
@@ -43,19 +46,26 @@ try {
                 
             } elseif ($action === 'details' && isset($_GET['id'])) {
                 // Get registration details with athletes
+                // Get registration details with athletes
                 $id = $_GET['id'];
                 
                 $registration = queryOne("
                     SELECT 
                         r.*,
                         s.name as school_name,
+                        s.director,
+                        s.phone as school_phone,
                         m.name as modality_name,
                         c.name as category_name,
-                        c.max_age
+                        c.min_birth_year,
+                        c.max_birth_year,
+                        u.name as professor_name,
+                        u.phone as professor_phone
                     FROM registrations r
                     JOIN schools s ON r.school_id = s.id
                     JOIN modalities m ON r.modality_id = m.id
                     JOIN categories c ON r.category_id = c.id
+                    LEFT JOIN users u ON r.created_by_user_id = u.id
                     WHERE r.id = ?
                 ", [$id]);
                 
@@ -108,6 +118,24 @@ try {
                 echo json_encode(['success' => true]);
             } else {
                 throw new Exception('Erro ao atualizar inscrição');
+            }
+            break;
+
+        case 'DELETE':
+            $id = $_GET['id'] ?? null;
+            
+            if (!$id) {
+                throw new Exception('ID não fornecido');
+            }
+            
+            // Delete enrollments first (although FK cascade might handle it, explicit is safer)
+            execute("DELETE FROM enrollments WHERE registration_id = ?", [$id]);
+            
+            // Delete registration
+            if (execute("DELETE FROM registrations WHERE id = ?", [$id])) {
+                echo json_encode(['success' => true]);
+            } else {
+                throw new Exception('Erro ao excluir equipe');
             }
             break;
             

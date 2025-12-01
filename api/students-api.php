@@ -48,12 +48,16 @@ try {
             if ($action === 'list') {
                 // List all students for the school
                 $students = query("
-                    SELECT * FROM students 
-                    WHERE school_id = ? 
-                    ORDER BY name
+                    SELECT s.*, u.name as professor_name 
+                    FROM students s
+                    LEFT JOIN users u ON s.created_by_user_id = u.id
+                    WHERE s.school_id = ? 
+                    ORDER BY s.name
                 ", [$schoolId]);
                 
-                echo json_encode(['success' => true, 'data' => $students]);
+                $currentUserId = getCurrentUserId();
+                
+                echo json_encode(['success' => true, 'data' => $students, 'current_user_id' => $currentUserId]);
                 
             } elseif ($action === 'details') {
                 $id = $_GET['id'] ?? null;
@@ -111,6 +115,16 @@ try {
             
             if (isset($data['id']) && $data['id']) {
                 // Update
+                $userId = getCurrentUserId();
+                
+                // Verify ownership
+                $student = queryOne("SELECT created_by_user_id FROM students WHERE id = ? AND school_id = ?", [$data['id'], $schoolId]);
+                if (!$student) throw new Exception('Aluno não encontrado');
+                
+                if ($student['created_by_user_id'] && $student['created_by_user_id'] != $userId) {
+                    throw new Exception('Você não tem permissão para editar este aluno');
+                }
+                
                 $sql = "UPDATE students SET 
                         name = ?, document_number = ?, birth_date = ?, gender = ?, phone = ?, age = ?";
                 $params = [
@@ -150,8 +164,14 @@ try {
                     throw new Exception('Foto do aluno e foto do documento são obrigatórias');
                 }
                 
-                $sql = "INSERT INTO students (school_id, name, document_number, birth_date, gender, phone, age, photo_path, document_path) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $userId = getCurrentUserId();
+                
+                if (!$schoolId) {
+                    throw new Exception('Erro: Seu usuário não está vinculado a nenhuma escola. Entre em contato com o administrador.');
+                }
+
+                $sql = "INSERT INTO students (school_id, name, document_number, birth_date, gender, phone, age, photo_path, document_path, created_by_user_id) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 
                 if (execute($sql, [
                     $schoolId,
@@ -162,11 +182,12 @@ try {
                     $data['phone'],
                     $age,
                     $photoPath,
-                    $docPath
+                    $docPath,
+                    $userId
                 ])) {
                     echo json_encode(['success' => true, 'id' => lastInsertId()]);
                 } else {
-                    throw new Exception('Erro ao cadastrar aluno');
+                    throw new Exception('Erro ao cadastrar aluno. Verifique os dados e tente novamente.');
                 }
             }
             break;
@@ -176,14 +197,22 @@ try {
             if (!$id) throw new Exception('ID não fornecido');
             
             // Check if student is enrolled in any team
-            $enrolled = queryOne("SELECT COUNT(*) as count FROM enrollments WHERE student_id = ?", [$id])['count'];
+            $enrolledResult = queryOne("SELECT COUNT(*) as count FROM enrollments WHERE student_id = ?", [$id]);
+            $enrolled = $enrolledResult ? $enrolledResult['count'] : 0;
             
             if ($enrolled > 0) {
                 throw new Exception('Não é possível excluir aluno inscrito em equipes');
             }
             
             // Get file paths to delete files
-            $student = queryOne("SELECT photo_path, document_path FROM students WHERE id = ? AND school_id = ?", [$id, $schoolId]);
+            $student = queryOne("SELECT photo_path, document_path, created_by_user_id FROM students WHERE id = ? AND school_id = ?", [$id, $schoolId]);
+            
+            if (!$student) throw new Exception('Aluno não encontrado');
+            
+            $userId = getCurrentUserId();
+            if ($student['created_by_user_id'] && $student['created_by_user_id'] != $userId) {
+                throw new Exception('Você não tem permissão para excluir este aluno');
+            }
             
             if (execute("DELETE FROM students WHERE id = ? AND school_id = ?", [$id, $schoolId])) {
                 // Delete files if they exist

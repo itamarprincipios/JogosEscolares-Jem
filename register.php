@@ -30,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Check if email already exists
         if (emailExists($email)) {
             $error = 'Este email já está cadastrado.';
+        } elseif (cpfExists($cpf)) {
+            $error = 'Este CPF já está cadastrado.';
         } else {
             // Create user directly
             $hashedPassword = hashPassword($password);

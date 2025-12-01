@@ -55,7 +55,7 @@ try {
             FROM categories c
             LEFT JOIN registrations r ON c.id = r.category_id AND r.status = 'approved'
             GROUP BY c.id, c.name
-            ORDER BY c.max_age
+            ORDER BY c.min_birth_year DESC
         ");
         
         echo json_encode([

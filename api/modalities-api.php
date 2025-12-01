@@ -7,7 +7,7 @@ require_once '../config/config.php';
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
 
-requireAdmin();
+requireLogin();
 
 header('Content-Type: application/json');
 
@@ -16,11 +16,13 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     switch ($method) {
         case 'GET':
+            // Allow both admin and professor to read
             $modalities = query("SELECT * FROM modalities ORDER BY name");
             echo json_encode(['success' => true, 'data' => $modalities]);
             break;
             
         case 'POST':
+            requireAdmin(); // Only admins can create/modify
             $data = json_decode(file_get_contents('php://input'), true);
             
             $sql = "INSERT INTO modalities (name, allows_mixed) VALUES (?, ?)";
@@ -33,6 +35,7 @@ try {
             break;
             
         case 'PUT':
+            requireAdmin(); // Only admins can create/modify
             $data = json_decode(file_get_contents('php://input'), true);
             
             $sql = "UPDATE modalities SET name = ?, allows_mixed = ? WHERE id = ?";
@@ -45,6 +48,7 @@ try {
             break;
             
         case 'DELETE':
+            requireAdmin(); // Only admins can delete
             $id = $_GET['id'] ?? null;
             if (!$id) {
                 throw new Exception('ID não fornecido');

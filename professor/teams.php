@@ -102,7 +102,7 @@ include '../includes/sidebar.php';
             <button class="modal-close" onclick="closeAthletesModal()">×</button>
         </div>
         <div class="modal-body">
-            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;" id="addAthleteSection">
                 <select id="studentSelect" class="form-select" style="flex: 1;">
                     <option value="">Selecione um aluno para adicionar...</option>
                 </select>
@@ -340,6 +340,7 @@ include '../includes/sidebar.php';
 
 <script>
 let currentTeamId = null;
+let currentUserId = null;
 
 // Load initial data
 async function loadData() {
@@ -382,6 +383,7 @@ async function loadTeams() {
         const data = await response.json();
         
         if (data.success) {
+            currentUserId = data.current_user_id;
             renderTeams(data.data);
         }
     } catch (error) {
@@ -419,6 +421,7 @@ function renderTeams(teams) {
     const statusLabels = { 'pending': 'Pendente', 'approved': 'Aprovada', 'rejected': 'Rejeitada' };
     
     filtered.forEach(team => {
+        const isOwner = !team.created_by_user_id || team.created_by_user_id == currentUserId;
         const card = document.createElement('div');
         card.className = 'team-card';
         
@@ -427,6 +430,7 @@ function renderTeams(teams) {
                 <div>
                     <h3 style="margin: 0 0 0.25rem 0;">${team.modality_name}</h3>
                     <p style="color: var(--text-secondary); margin: 0; font-size: 0.875rem;">${team.category_name}</p>
+                    ${!isOwner ? `<p style="color: var(--text-muted); margin: 0.25rem 0 0 0; font-size: 0.75rem;">Criado por: ${team.professor_name || 'Outro professor'}</p>` : ''}
                 </div>
                 <span class="status-badge status-${team.status}">${statusLabels[team.status]}</span>
             </div>
@@ -443,14 +447,20 @@ function renderTeams(teams) {
             </div>
             
             <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-sm btn-primary" onclick="manageAthletes(${team.id})" style="flex: 1;">
-                    👥 Atletas
-                </button>
-                ${team.status === 'pending' ? `
-                    <button class="btn btn-sm btn-danger" onclick="deleteTeam(${team.id})">
-                        🗑️
+                ${isOwner ? `
+                    <button class="btn btn-sm btn-primary" onclick="manageAthletes(${team.id})" style="flex: 1;">
+                        👥 Atletas
                     </button>
-                ` : ''}
+                    ${team.status === 'pending' ? `
+                        <button class="btn btn-sm btn-danger" onclick="deleteTeam(${team.id})">
+                            🗑️
+                        </button>
+                    ` : ''}
+                ` : `
+                    <button class="btn btn-sm btn-secondary" onclick="manageAthletes(${team.id})" style="flex: 1;">
+                        👁️ Visualizar
+                    </button>
+                `}
             </div>
         `;
         
@@ -504,8 +514,15 @@ async function manageAthletes(teamId) {
             const team = data.data;
             document.getElementById('athletesModalTitle').textContent = `${team.modality_name} - ${team.category_name}`;
             
-            renderAthletesTable(team.athletes);
-            loadAvailableStudents(); // Load students for dropdown
+            // Check ownership
+            const isOwner = !team.created_by_user_id || team.created_by_user_id == currentUserId;
+            
+            // Toggle add section
+            const addSection = document.getElementById('addAthleteSection');
+            if (addSection) addSection.style.display = isOwner ? 'flex' : 'none';
+            
+            renderAthletesTable(team.athletes, isOwner);
+            if (isOwner) loadAvailableStudents(); 
             
             document.getElementById('athletesModal').classList.add('active');
         }
@@ -516,7 +533,7 @@ async function manageAthletes(teamId) {
 }
 
 // Render athletes table
-function renderAthletesTable(athletes) {
+function renderAthletesTable(athletes, isOwner = true) {
     const tbody = document.querySelector('#athletesTable tbody');
     tbody.innerHTML = '';
     
@@ -533,7 +550,7 @@ function renderAthletesTable(athletes) {
             <td>${athlete.gender === 'M' ? 'Masc' : 'Fem'}</td>
             <td>
                 <button class="btn btn-sm btn-secondary" onclick="printBadge(${athlete.id})" style="margin-right: 0.5rem;">🖨️ Crachá</button>
-                <button class="btn btn-sm btn-danger" onclick="removeAthlete(${athlete.enrollment_id})">Remover</button>
+                ${isOwner ? `<button class="btn btn-sm btn-danger" onclick="removeAthlete(${athlete.enrollment_id})">Remover</button>` : ''}
             </td>
         `;
         tbody.appendChild(row);

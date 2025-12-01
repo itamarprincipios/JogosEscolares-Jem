@@ -157,6 +157,18 @@ function emailExists($email, $excludeUserId = null) {
 }
 
 /**
+ * Check if CPF exists
+ */
+function cpfExists($cpf, $excludeUserId = null) {
+    if ($excludeUserId) {
+        $user = queryOne("SELECT id FROM users WHERE cpf = ? AND id != ?", [$cpf, $excludeUserId]);
+    } else {
+        $user = queryOne("SELECT id FROM users WHERE cpf = ?", [$cpf]);
+    }
+    return $user !== false;
+}
+
+/**
  * Get redirect URL based on role
  */
 function getRedirectUrl($role) {

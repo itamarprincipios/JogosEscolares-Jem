@@ -336,17 +336,45 @@ function openProfessorModal(id = null) {
     
     if (id) {
         document.getElementById('modalTitle').textContent = 'Editar Professor';
-        document.getElementById('passwordGroup').style.display = 'none';
+        document.getElementById('passwordGroup').style.display = 'block'; // Allow password change
         document.getElementById('password').required = false;
-        // Load professor data here
+        document.getElementById('password').placeholder = 'Deixe em branco para manter a atual';
+        loadProfessor(id);
     } else {
         document.getElementById('modalTitle').textContent = 'Novo Professor';
         document.getElementById('passwordGroup').style.display = 'block';
         document.getElementById('password').required = true;
+        document.getElementById('password').placeholder = 'Mínimo 6 caracteres';
         document.getElementById('professorId').value = '';
     }
     
     modal.classList.add('active');
+}
+
+// Edit professor wrapper
+function editProfessor(id) {
+    openProfessorModal(id);
+}
+
+// Load professor data
+async function loadProfessor(id) {
+    try {
+        const response = await fetch(`../api/professors-api.php?action=get&id=${id}`);
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+            const prof = data.data;
+            document.getElementById('professorId').value = prof.id;
+            document.getElementById('name').value = prof.name;
+            document.getElementById('email').value = prof.email;
+            document.getElementById('cpf').value = prof.cpf;
+            document.getElementById('phone').value = prof.phone || '';
+            document.getElementById('schoolId').value = prof.school_id;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        Toast.error('Erro ao carregar dados do professor');
+    }
 }
 
 function closeProfessorModal() {
@@ -355,6 +383,7 @@ function closeProfessorModal() {
 
 // Save professor
 async function saveProfessor() {
+    const id = document.getElementById('professorId').value;
     const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
     const cpf = document.getElementById('cpf').value.trim();
@@ -371,21 +400,28 @@ async function saveProfessor() {
         return;
     }
     
-    if (!password || password.length < 6) {
+    // Password validation: required for new, optional for edit
+    if (!id && (!password || password.length < 6)) {
+        Toast.error('A senha deve ter no mínimo 6 caracteres');
+        return;
+    }
+    
+    if (id && password && password.length < 6) {
         Toast.error('A senha deve ter no mínimo 6 caracteres');
         return;
     }
     
     const data = {
+        id: id || undefined,
         name, email, cpf,
         phone: document.getElementById('phone').value.trim(),
         school_id: schoolId,
-        password
+        password: password || undefined
     };
     
     try {
         const response = await fetch('../api/professors-api.php', {
-            method: 'POST',
+            method: id ? 'PUT' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
@@ -393,7 +429,7 @@ async function saveProfessor() {
         const result = await response.json();
         
         if (result.success) {
-            Toast.success('Professor cadastrado com sucesso!');
+            Toast.success(id ? 'Professor atualizado com sucesso!' : 'Professor cadastrado com sucesso!');
             closeProfessorModal();
             loadProfessors();
         } else {

@@ -39,6 +39,13 @@ try {
                 ");
                 echo json_encode(['success' => true, 'data' => $requests]);
                 
+            } elseif ($action === 'get' && isset($_GET['id'])) {
+                $professor = queryOne("SELECT * FROM users WHERE id = ? AND role = 'professor'", [$_GET['id']]);
+                if ($professor) {
+                    unset($professor['password']); // Don't send password
+                }
+                echo json_encode(['success' => true, 'data' => $professor]);
+                
             } else {
                 throw new Exception('Ação não especificada');
             }
@@ -105,10 +112,40 @@ try {
         case 'PUT':
             $data = json_decode(file_get_contents('php://input'), true);
             
-            // Update professor (mainly for activating/deactivating)
-            $sql = "UPDATE users SET is_active = ? WHERE id = ? AND role = 'professor'";
+            // Update professor
+            if (isset($data['is_active']) && count($data) === 2) {
+                // Status toggle only
+                $sql = "UPDATE users SET is_active = ? WHERE id = ? AND role = 'professor'";
+                $params = [$data['is_active'] ? 1 : 0, $data['id']];
+            } else {
+                // Full update
+                $sql = "UPDATE users SET name = ?, email = ?, cpf = ?, phone = ?, school_id = ? WHERE id = ? AND role = 'professor'";
+                $params = [
+                    $data['name'],
+                    $data['email'],
+                    $data['cpf'],
+                    $data['phone'] ?? null,
+                    $data['school_id'],
+                    $data['id']
+                ];
+                
+                // Update password if provided
+                if (!empty($data['password'])) {
+                    $hashedPassword = hashPassword($data['password']);
+                    $sql = "UPDATE users SET name = ?, email = ?, cpf = ?, phone = ?, school_id = ?, password = ? WHERE id = ? AND role = 'professor'";
+                    $params = [
+                        $data['name'],
+                        $data['email'],
+                        $data['cpf'],
+                        $data['phone'] ?? null,
+                        $data['school_id'],
+                        $hashedPassword,
+                        $data['id']
+                    ];
+                }
+            }
             
-            if (execute($sql, [$data['is_active'] ? 1 : 0, $data['id']])) {
+            if (execute($sql, $params)) {
                 echo json_encode(['success' => true]);
             } else {
                 throw new Exception('Erro ao atualizar professor');

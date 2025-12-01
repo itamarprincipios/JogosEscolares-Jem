@@ -106,22 +106,76 @@ include '../includes/sidebar.php';
             </div>
         </div>
         
-        <!-- By School -->
+        <!-- Logistics Planning Section -->
+        <div class="glass-card" style="margin-top: 2rem; background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%); border: 2px solid rgba(59, 130, 246, 0.3);">
+            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="font-size: 2rem;">📊</div>
+                <h3 style="margin: 0;">Planejamento Logístico</h3>
+            </div>
+            
+            <div style="background: var(--bg-secondary); padding: 1.5rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; font-weight: 700; color: var(--primary);" id="logisticsTotalStudents">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">Total de Atletas Cadastrados</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; font-weight: 700; color: var(--success);" id="logisticsParticipatingSchools">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.5rem;">Escolas Participantes</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2rem;">🍽️</div>
+                    <div>
+                        <div style="font-weight: 600;">Merenda Escolar</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Planejamento de refeições</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2rem;">🏠</div>
+                    <div>
+                        <div style="font-weight: 600;">Hospedagem</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Acomodação nas escolas</div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--radius-md);">
+                    <div style="font-size: 2rem;">🚌</div>
+                    <div>
+                        <div style="font-weight: 600;">Transporte</div>
+                        <div style="font-size: 0.875rem; color: var(--text-secondary);">Logística de deslocamento</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- By School - Enhanced -->
         <div class="glass-card" style="margin-top: 2rem;">
-            <h3 style="margin-bottom: 1.5rem;">Participação por Escola</h3>
+            <h3 style="margin-bottom: 1.5rem;">Distribuição de Atletas por Escola</h3>
             <div class="table-container">
                 <table class="table" id="schoolTable">
                     <thead>
                         <tr>
                             <th>Escola</th>
-                            <th style="text-align: right;">Equipes Inscritas</th>
-                            <th style="text-align: right;">Total de Atletas</th>
-                            <th>Status</th>
+                            <th style="text-align: right;">Equipes</th>
+                            <th style="text-align: right;">Atletas</th>
+                            <th style="text-align: right;">% do Total</th>
+                            <th style="width: 30%;">Distribuição</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="4" style="text-align: center;">Carregando...</td></tr>
+                        <tr><td colspan="5" style="text-align: center;">Carregando...</td></tr>
                     </tbody>
+                    <tfoot id="schoolTableFooter" style="font-weight: 700; background: var(--bg-tertiary);">
+                        <tr>
+                            <td>TOTAL</td>
+                            <td style="text-align: right;" id="footerTotalTeams">-</td>
+                            <td style="text-align: right;" id="footerTotalStudents">-</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
@@ -190,6 +244,11 @@ function updateDashboard(data) {
     document.getElementById('totalTeams').textContent = data.totals.teams;
     document.getElementById('totalStudents').textContent = data.totals.students;
     
+    // 1.5 Logistics Section
+    document.getElementById('logisticsTotalStudents').textContent = data.totals.students;
+    const participatingSchools = data.bySchool.filter(s => s.team_count > 0).length;
+    document.getElementById('logisticsParticipatingSchools').textContent = participatingSchools;
+    
     // 2. Modality Table
     const modTbody = document.querySelector('#modalityTable tbody');
     modTbody.innerHTML = '';
@@ -225,24 +284,51 @@ function updateDashboard(data) {
         catTbody.appendChild(row);
     });
     
-    // 4. School Table
+    // 4. Enhanced School Table with Percentages
     const schoolTbody = document.querySelector('#schoolTable tbody');
     schoolTbody.innerHTML = '';
     
-    data.bySchool.forEach(item => {
+    const totalStudents = data.totals.students;
+    const maxStudents = Math.max(...data.bySchool.map(s => s.student_count), 1);
+    let totalTeamsSum = 0;
+    let totalStudentsSum = 0;
+    
+    // Sort schools by student count (descending)
+    const sortedSchools = [...data.bySchool].sort((a, b) => b.student_count - a.student_count);
+    
+    sortedSchools.forEach((item, index) => {
+        totalTeamsSum += parseInt(item.team_count);
+        totalStudentsSum += parseInt(item.student_count);
+        
+        const percentage = totalStudents > 0 ? ((item.student_count / totalStudents) * 100).toFixed(1) : 0;
+        const barPercentage = (item.student_count / maxStudents) * 100;
+        
         const row = document.createElement('tr');
-        const status = item.team_count > 0 
-            ? '<span class="badge badge-success">Participando</span>' 
-            : '<span class="badge" style="background: rgba(100, 100, 100, 0.2);">Sem inscrições</span>';
-            
+        
+        // Highlight top school
+        const isTopSchool = index === 0 && item.student_count > 0;
+        const rowStyle = isTopSchool ? 'background: rgba(59, 130, 246, 0.1);' : '';
+        
         row.innerHTML = `
-            <td>${item.name}</td>
-            <td style="text-align: right;">${item.team_count}</td>
-            <td style="text-align: right;">${item.student_count}</td>
-            <td>${status}</td>
+            <td style="${rowStyle}">
+                ${isTopSchool ? '🏆 ' : ''}
+                <strong>${item.name}</strong>
+            </td>
+            <td style="text-align: right; ${rowStyle}">${item.team_count}</td>
+            <td style="text-align: right; ${rowStyle}"><strong>${item.student_count}</strong></td>
+            <td style="text-align: right; ${rowStyle}">${percentage}%</td>
+            <td style="${rowStyle}">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width: ${barPercentage}%; background: ${isTopSchool ? 'var(--success)' : 'var(--primary)'}"></div>
+                </div>
+            </td>
         `;
         schoolTbody.appendChild(row);
     });
+    
+    // Update footer totals
+    document.getElementById('footerTotalTeams').textContent = totalTeamsSum;
+    document.getElementById('footerTotalStudents').textContent = totalStudentsSum;
 }
 
 // Initialize

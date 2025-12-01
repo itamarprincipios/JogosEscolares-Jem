@@ -7,7 +7,7 @@ require_once '../config/config.php';
 require_once '../includes/auth.php';
 require_once '../includes/db.php';
 
-requireAdmin();
+requireLogin();
 
 header('Content-Type: application/json');
 
@@ -16,16 +16,18 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
     switch ($method) {
         case 'GET':
-            $categories = query("SELECT * FROM categories ORDER BY max_age");
+            // Allow both admin and professor to read
+            $categories = query("SELECT * FROM categories ORDER BY min_birth_year DESC");
             echo json_encode(['success' => true, 'data' => $categories]);
             break;
             
         case 'POST':
+            requireAdmin(); // Only admins can create/modify
             $data = json_decode(file_get_contents('php://input'), true);
             
-            $sql = "INSERT INTO categories (name, max_age) VALUES (?, ?)";
+            $sql = "INSERT INTO categories (name, min_birth_year, max_birth_year) VALUES (?, ?, ?)";
             
-            if (execute($sql, [$data['name'], $data['max_age']])) {
+            if (execute($sql, [$data['name'], $data['min_birth_year'], $data['max_birth_year']])) {
                 echo json_encode(['success' => true, 'id' => lastInsertId()]);
             } else {
                 throw new Exception('Erro ao criar categoria');
@@ -33,11 +35,12 @@ try {
             break;
             
         case 'PUT':
+            requireAdmin(); // Only admins can create/modify
             $data = json_decode(file_get_contents('php://input'), true);
             
-            $sql = "UPDATE categories SET name = ?, max_age = ? WHERE id = ?";
+            $sql = "UPDATE categories SET name = ?, min_birth_year = ?, max_birth_year = ? WHERE id = ?";
             
-            if (execute($sql, [$data['name'], $data['max_age'], $data['id']])) {
+            if (execute($sql, [$data['name'], $data['min_birth_year'], $data['max_birth_year'], $data['id']])) {
                 echo json_encode(['success' => true]);
             } else {
                 throw new Exception('Erro ao atualizar categoria');
@@ -45,6 +48,7 @@ try {
             break;
             
         case 'DELETE':
+            requireAdmin(); // Only admins can delete
             $id = $_GET['id'] ?? null;
             if (!$id) {
                 throw new Exception('ID não fornecido');

@@ -101,12 +101,16 @@ try {
                 throw new Exception('ID não fornecido');
             }
             
-            // Check if school has students or users
-            $hasStudents = queryOne("SELECT COUNT(*) as count FROM students WHERE school_id = ?", [$id])['count'];
-            $hasUsers = queryOne("SELECT COUNT(*) as count FROM users WHERE school_id = ?", [$id])['count'];
+            $force = isset($_GET['force']) && $_GET['force'] === 'true';
             
-            if ($hasStudents > 0 || $hasUsers > 0) {
-                throw new Exception('Não é possível excluir escola com alunos ou professores vinculados');
+            if (!$force) {
+                // Check if school has students or users
+                $hasStudents = queryOne("SELECT COUNT(*) as count FROM students WHERE school_id = ?", [$id])['count'];
+                $hasUsers = queryOne("SELECT COUNT(*) as count FROM users WHERE school_id = ?", [$id])['count'];
+                
+                if ($hasStudents > 0 || $hasUsers > 0) {
+                    throw new Exception('DEPENDENCY_ERROR: Esta escola possui alunos ou professores vinculados');
+                }
             }
             
             if (execute("DELETE FROM schools WHERE id = ?", [$id])) {

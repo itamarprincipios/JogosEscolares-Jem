@@ -13,12 +13,29 @@ $userId = $_SESSION['user_id'];
 $user = queryOne("SELECT u.*, s.name as school_name FROM users u LEFT JOIN schools s ON u.school_id = s.id WHERE u.id = ?", [$userId]);
 
 // Get stats
+// Get stats
 $stats = [
-    'teams' => queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ?", [$user['school_id']])['count'],
-    'students' => queryOne("SELECT COUNT(*) as count FROM students WHERE school_id = ?", [$user['school_id']])['count'],
-    'pending' => queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ? AND status = 'pending'", [$user['school_id']])['count'],
-    'approved' => queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ? AND status = 'approved'", [$user['school_id']])['count']
+    'teams' => 0,
+    'students' => 0,
+    'pending' => 0,
+    'approved' => 0
 ];
+
+if ($user && !empty($user['school_id'])) {
+    $schoolId = $user['school_id'];
+    
+    $teamsQuery = queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ?", [$schoolId]);
+    $stats['teams'] = $teamsQuery['count'] ?? 0;
+    
+    $studentsQuery = queryOne("SELECT COUNT(*) as count FROM students WHERE school_id = ?", [$schoolId]);
+    $stats['students'] = $studentsQuery['count'] ?? 0;
+    
+    $pendingQuery = queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ? AND status = 'pending'", [$schoolId]);
+    $stats['pending'] = $pendingQuery['count'] ?? 0;
+    
+    $approvedQuery = queryOne("SELECT COUNT(*) as count FROM registrations WHERE school_id = ? AND status = 'approved'", [$schoolId]);
+    $stats['approved'] = $approvedQuery['count'] ?? 0;
+}
 
 include '../includes/header.php';
 include '../includes/sidebar.php';

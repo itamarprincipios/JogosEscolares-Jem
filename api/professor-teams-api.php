@@ -15,7 +15,17 @@ $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 $schoolId = getCurrentSchoolId();
 
+if (!$schoolId && $action !== 'list') {
+    // For list action we might return empty, but for others we need school_id
+    // Actually, even for list we need it to filter.
+    // Let's handle it inside the try block or just fail gracefully.
+}
+
 try {
+    if (!$schoolId) {
+        throw new Exception('Erro: Seu usuário não está vinculado a nenhuma escola. Entre em contato com o administrador.');
+    }
+
     switch ($method) {
         case 'GET':
             if ($action === 'list') {
@@ -25,15 +35,21 @@ try {
                         r.*,
                         m.name as modality_name,
                         c.name as category_name,
+                        u.name as professor_name,
                         (SELECT COUNT(*) FROM enrollments e WHERE e.registration_id = r.id) as athlete_count
                     FROM registrations r
                     JOIN modalities m ON r.modality_id = m.id
                     JOIN categories c ON r.category_id = c.id
+                    LEFT JOIN users u ON r.created_by_user_id = u.id
                     WHERE r.school_id = ?
                     ORDER BY r.created_at DESC
                 ", [$schoolId]);
                 
-                echo json_encode(['success' => true, 'data' => $teams]);
+
+                
+                $currentUserId = getCurrentUserId();
+                
+                echo json_encode(['success' => true, 'data' => $teams, 'current_user_id' => $currentUserId]);
                 
             } elseif ($action === 'details') {
                 $id = $_GET['id'] ?? null;
@@ -92,10 +108,12 @@ try {
                     throw new Exception('Esta equipe já está cadastrada');
                 }
                 
-                $sql = "INSERT INTO registrations (school_id, modality_id, category_id, gender, status) 
-                        VALUES (?, ?, ?, ?, 'pending')";
+                $userId = getCurrentUserId();
                 
-                if (execute($sql, [$schoolId, $data['modality_id'], $data['category_id'], $data['gender']])) {
+                $sql = "INSERT INTO registrations (school_id, modality_id, category_id, gender, created_by_user_id, status) 
+                        VALUES (?, ?, ?, ?, ?, 'pending')";
+                
+                if (execute($sql, [$schoolId, $data['modality_id'], $data['category_id'], $data['gender'], $userId])) {
                     echo json_encode(['success' => true, 'id' => lastInsertId()]);
                 } else {
                     throw new Exception('Erro ao criar equipe');
@@ -110,6 +128,11 @@ try {
                 $team = queryOne("SELECT * FROM registrations WHERE id = ? AND school_id = ?", [$teamId, $schoolId]);
                 if (!$team) throw new Exception('Equipe não encontrada');
                 
+                $userId = getCurrentUserId();
+                if ($team['created_by_user_id'] && $team['created_by_user_id'] != $userId) {
+                    throw new Exception('Você não tem permissão para editar esta equipe');
+                }
+                
                 // Verify student ownership
                 $student = queryOne("SELECT * FROM students WHERE id = ? AND school_id = ?", [$studentId, $schoolId]);
                 if (!$student) throw new Exception('Aluno não encontrado');
@@ -123,11 +146,46 @@ try {
                     throw new Exception('Gênero do aluno incompatível com a equipe');
                 }
                 
-                // Check age compatibility (simplified logic, can be expanded)
-                // Get category max age
-                $category = queryOne("SELECT max_age FROM categories WHERE id = ?", [$team['category_id']]);
-                if ($student['age'] > $category['max_age']) {
-                    throw new Exception("Aluno excede a idade máxima da categoria ({$category['max_age']} anos)");
+                // Check age compatibility - validate birth year is within category range
+                // Get category birth year range
+                $category = queryOne("SELECT min_birth_year, max_birth_year FROM categories WHERE id = ?", [$team['category_id']]);
+                if (!$category) throw new Exception('Categoria não encontrada');
+                
+                $birthYear = (int)date('Y', strtotime($student['birth_date']));
+                
+                if ($birthYear < $category['min_birth_year'] || $birthYear > $category['max_birth_year']) {
+                    throw new Exception("Aluno não se enquadra na faixa de anos de nascimento da categoria ({$category['min_birth_year']}-{$category['max_birth_year']}). Ano de nascimento do aluno: {$birthYear}");
+                }
+
+                // Check for multi-modality rules
+                // Rule: Student can participate in 'Atletismo' + 1 other modality.
+                // Cannot participate in 2 "collective" (non-Atletismo) modalities.
+                
+                // Get current team's modality name
+                $currentModality = queryOne("SELECT name FROM modalities WHERE id = ?", [$team['modality_id']]);
+                if (!$currentModality) throw new Exception('Modalidade não encontrada');
+                
+                $currentModalityName = $currentModality['name'];
+
+                // Check if current modality is a type of Atletismo
+                $isAtletismo = strpos($currentModalityName, 'Atletismo') !== false;
+
+                // If the new team is NOT Atletismo, we must check if the student is already in another non-Atletismo team
+                if (!$isAtletismo) {
+                    $existingEnrollments = query("
+                        SELECT m.name as modality_name
+                        FROM enrollments e
+                        JOIN registrations r ON e.registration_id = r.id
+                        JOIN modalities m ON r.modality_id = m.id
+                        WHERE e.student_id = ?
+                    ", [$studentId]);
+
+                    foreach ($existingEnrollments as $enrollment) {
+                        // Check if existing enrollment is NOT Atletismo
+                        if (strpos($enrollment['modality_name'], 'Atletismo') === false) {
+                            throw new Exception("O aluno já está inscrito em outra modalidade coletiva ({$enrollment['modality_name']}). É permitido participar apenas de uma modalidade coletiva + Atletismo.");
+                        }
+                    }
                 }
                 
                 if (execute("INSERT INTO enrollments (registration_id, student_id) VALUES (?, ?)", [$teamId, $studentId])) {
@@ -144,9 +202,15 @@ try {
             
             if ($type === 'team') {
                 // Delete team (only if pending)
-                $team = queryOne("SELECT status FROM registrations WHERE id = ? AND school_id = ?", [$id, $schoolId]);
+                $team = queryOne("SELECT status, created_by_user_id FROM registrations WHERE id = ? AND school_id = ?", [$id, $schoolId]);
                 
                 if (!$team) throw new Exception('Equipe não encontrada');
+                
+                $userId = getCurrentUserId();
+                if ($team['created_by_user_id'] && $team['created_by_user_id'] != $userId) {
+                    throw new Exception('Você não tem permissão para excluir esta equipe');
+                }
+                
                 if ($team['status'] !== 'pending') throw new Exception('Apenas equipes pendentes podem ser excluídas');
                 
                 // Delete enrollments first
@@ -164,13 +228,18 @@ try {
                 
                 // Verify ownership via join
                 $enrollment = queryOne("
-                    SELECT e.id 
+                    SELECT e.id, r.created_by_user_id 
                     FROM enrollments e 
                     JOIN registrations r ON e.registration_id = r.id 
                     WHERE e.id = ? AND r.school_id = ?
                 ", [$enrollmentId, $schoolId]);
                 
                 if (!$enrollment) throw new Exception('Inscrição não encontrada');
+                
+                $userId = getCurrentUserId();
+                if ($enrollment['created_by_user_id'] && $enrollment['created_by_user_id'] != $userId) {
+                    throw new Exception('Você não tem permissão para remover atletas desta equipe');
+                }
                 
                 if (execute("DELETE FROM enrollments WHERE id = ?", [$enrollmentId])) {
                     echo json_encode(['success' => true]);

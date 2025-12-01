@@ -27,7 +27,7 @@ include '../includes/sidebar.php';
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
             <div>
                 <p style="color: var(--text-secondary);">
-                    Gerencie as categorias de idade para as competições
+                    Gerencie as categorias por ano de nascimento para as competições
                 </p>
             </div>
             <button class="btn btn-primary" onclick="openModal()">
@@ -43,7 +43,7 @@ include '../includes/sidebar.php';
                     <thead>
                         <tr>
                             <th>Nome</th>
-                            <th>Idade Máxima</th>
+                            <th>Anos de Nascimento</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -77,27 +77,43 @@ include '../includes/sidebar.php';
                         type="text" 
                         id="name" 
                         class="form-input" 
-                        placeholder="Ex: Sub-12, Sub-14, Sub-16"
+                        placeholder="Ex: Fraldinha, Pré Mirin, Mirin"
                         required
                     >
                     <small style="color: var(--text-secondary); font-size: 0.875rem;">
-                        Use o formato "Sub-XX" onde XX é a idade máxima
+                        Nome da categoria conforme regulamento
                     </small>
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Idade Máxima *</label>
+                    <label class="form-label">Ano de Nascimento Mínimo *</label>
                     <input 
                         type="number" 
-                        id="maxAge" 
+                        id="minBirthYear" 
                         class="form-input" 
-                        min="6" 
-                        max="25"
-                        placeholder="Ex: 12, 14, 16"
+                        min="2000" 
+                        max="2030"
+                        placeholder="Ex: 2010"
                         required
                     >
                     <small style="color: var(--text-secondary); font-size: 0.875rem;">
-                        Idade máxima permitida para esta categoria (em anos)
+                        Ano de nascimento mais antigo permitido
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Ano de Nascimento Máximo *</label>
+                    <input 
+                        type="number" 
+                        id="maxBirthYear" 
+                        class="form-input" 
+                        min="2000" 
+                        max="2030"
+                        placeholder="Ex: 2011"
+                        required
+                    >
+                    <small style="color: var(--text-secondary); font-size: 0.875rem;">
+                        Ano de nascimento mais recente permitido
                     </small>
                 </div>
             </form>
@@ -137,14 +153,14 @@ function renderTable(categories) {
         return;
     }
     
-    // Ordenar por idade máxima
-    categories.sort((a, b) => a.max_age - b.max_age);
+    // Ordenar por ano de nascimento (mais recente primeiro)
+    categories.sort((a, b) => b.min_birth_year - a.min_birth_year);
     
     categories.forEach(category => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td><strong>${category.name}</strong></td>
-            <td>${category.max_age} anos</td>
+            <td>${category.min_birth_year} - ${category.max_birth_year}</td>
             <td>
                 <button class="btn btn-sm btn-secondary" onclick="editCategory(${category.id})" style="margin-right: 0.5rem;">Editar</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteCategory(${category.id})">Excluir</button>
@@ -187,7 +203,8 @@ async function loadCategory(id) {
             if (category) {
                 document.getElementById('categoryId').value = category.id;
                 document.getElementById('name').value = category.name;
-                document.getElementById('maxAge').value = category.max_age;
+                document.getElementById('minBirthYear').value = category.min_birth_year;
+                document.getElementById('maxBirthYear').value = category.max_birth_year;
             }
         }
     } catch (error) {
@@ -205,22 +222,29 @@ function editCategory(id) {
 async function saveCategory() {
     const id = document.getElementById('categoryId').value;
     const name = document.getElementById('name').value.trim();
-    const maxAge = parseInt(document.getElementById('maxAge').value);
+    const minBirthYear = parseInt(document.getElementById('minBirthYear').value);
+    const maxBirthYear = parseInt(document.getElementById('maxBirthYear').value);
     
-    if (!name || !maxAge) {
+    if (!name || !minBirthYear || !maxBirthYear) {
         Toast.error('Por favor, preencha todos os campos obrigatórios');
         return;
     }
     
-    if (maxAge < 6 || maxAge > 25) {
-        Toast.error('A idade máxima deve estar entre 6 e 25 anos');
+    if (minBirthYear < 2000 || maxBirthYear > 2030) {
+        Toast.error('Os anos de nascimento devem estar entre 2000 e 2030');
+        return;
+    }
+    
+    if (minBirthYear > maxBirthYear) {
+        Toast.error('O ano mínimo não pode ser maior que o ano máximo');
         return;
     }
     
     const data = {
         id: id || undefined,
         name: name,
-        max_age: maxAge
+        min_birth_year: minBirthYear,
+        max_birth_year: maxBirthYear
     };
     
     try {

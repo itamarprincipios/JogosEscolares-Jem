@@ -70,6 +70,23 @@ include '../includes/sidebar.php';
     </div>
 </div>
 
+<!-- Modal: Document Viewer -->
+<div class="modal-overlay" id="documentModal">
+    <div class="modal" style="max-width: 800px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="documentModalTitle">Documento de Identificação</h3>
+            <button class="modal-close" onclick="closeDocumentModal()">×</button>
+        </div>
+        <div class="modal-body" id="documentModalContent" style="text-align: center; padding: 2rem;">
+            <!-- Document loaded here -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeDocumentModal()">Fechar</button>
+            <a id="downloadDocumentBtn" class="btn btn-primary" download style="display: none;">⬇️ Baixar Documento</a>
+        </div>
+    </div>
+</div>
+
 <!-- Modal: Team Details -->
 <div class="modal-overlay" id="teamModal">
     <div class="modal" style="max-width: 900px;">
@@ -81,6 +98,7 @@ include '../includes/sidebar.php';
             <!-- Content loaded dynamically -->
         </div>
         <div class="modal-footer">
+            <button class="btn btn-danger" onclick="deleteCurrentTeam()" style="margin-right: auto;">🗑️ Excluir Equipe</button>
             <button class="btn btn-secondary" onclick="closeTeamModal()">Fechar</button>
             <button class="btn btn-primary" onclick="printTeamList()">🖨️ Imprimir Lista</button>
         </div>
@@ -145,6 +163,37 @@ include '../includes/sidebar.php';
     font-size: 1.25rem;
 }
 
+.btn-sm {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+#documentModalContent img {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+#documentModalContent iframe {
+    width: 100%;
+    height: 70vh;
+    border: none;
+    border-radius: var(--radius-md);
+}
+
+.document-error {
+    color: var(--danger);
+    padding: 2rem;
+    text-align: center;
+}
+
+.document-loading {
+    color: var(--text-secondary);
+    padding: 2rem;
+    text-align: center;
+}
+
 @media print {
     body * {
         visibility: hidden;
@@ -161,6 +210,15 @@ include '../includes/sidebar.php';
     .modal-overlay, .modal-header, .modal-footer {
         display: none !important;
     }
+}
+
+.btn-danger {
+    background-color: #ef4444;
+    color: white;
+    border: none;
+}
+.btn-danger:hover {
+    background-color: #dc2626;
 }
 </style>
 
@@ -303,6 +361,10 @@ function renderTeams(data) {
                     <span class="team-stat-icon">✅</span>
                     <span>Aprovada</span>
                 </div>
+                <div class="team-stat" style="grid-column: span 2; border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+                    <span class="team-stat-icon">👨‍🏫</span>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Prof. ${team.professor_name || 'N/A'}</span>
+                </div>
             </div>
         `;
         
@@ -336,20 +398,26 @@ async function viewTeamDetails(id) {
                                     <th>Data Nascimento</th>
                                     <th>Idade</th>
                                     <th>Gênero</th>
+                                    <th>Documento</th>
                                 </tr>
                             </thead>
                             <tbody>
                 `;
                 
                 team.athletes.forEach((athlete, index) => {
+                    const documentButton = athlete.document_path 
+                        ? `<button class="btn btn-sm btn-primary" onclick="viewDocument('${athlete.document_path}', '${athlete.name.replace(/'/g, "\\'")}')">📄 Ver Documento</button>`
+                        : '<span style="color: var(--text-muted); font-size: 0.875rem;">Não enviado</span>';
+                    
                     athletesHtml += `
                         <tr>
                             <td>${index + 1}</td>
                             <td><strong>${athlete.name}</strong></td>
-                            <td>${athlete.cpf}</td>
+                            <td>${athlete.document_number}</td>
                             <td>${new Date(athlete.birth_date).toLocaleDateString('pt-BR')}</td>
                             <td>${athlete.age} anos</td>
                             <td>${athlete.gender === 'M' ? 'Masculino' : 'Feminino'}</td>
+                            <td>${documentButton}</td>
                         </tr>
                     `;
                 });
@@ -365,6 +433,8 @@ async function viewTeamDetails(id) {
                         <div><strong>Modalidade:</strong> ${team.modality_name}</div>
                         <div><strong>Categoria:</strong> ${team.category_name}</div>
                         <div><strong>Gênero:</strong> ${genderLabels[team.gender]}</div>
+                        <div><strong>Professor Responsável:</strong> ${team.professor_name || '<span style="color: var(--text-muted)">Não registrado</span>'}</div>
+                        <div><strong>Telefone Professor:</strong> ${team.professor_phone || '<span style="color: var(--text-muted)">-</span>'}</div>
                         <div><strong>Total de Atletas:</strong> ${team.athletes?.length || 0}</div>
                         <div><strong>Data de Aprovação:</strong> ${new Date(team.updated_at).toLocaleDateString('pt-BR')}</div>
                     </div>
@@ -386,6 +456,42 @@ async function viewTeamDetails(id) {
 
 function closeTeamModal() {
     document.getElementById('teamModal').classList.remove('active');
+}
+
+async function deleteCurrentTeam() {
+    if (!currentTeam) return;
+    
+    if (!confirm('Tem certeza que deseja excluir esta equipe?\n\nATENÇÃO: A equipe será removida, mas os alunos permanecerão cadastrados no sistema.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`../api/registrations-api.php?action=delete&id=${currentTeam.id}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            // Show success message (using native alert if Toast not available, or just reload)
+            // Assuming Toast is available as used elsewhere
+            if (typeof Toast !== 'undefined') {
+                Toast.success('Equipe excluída com sucesso');
+            } else {
+                alert('Equipe excluída com sucesso');
+            }
+            closeTeamModal();
+            loadTeams();
+        } else {
+            if (typeof Toast !== 'undefined') {
+                Toast.error(data.error || 'Erro ao excluir equipe');
+            } else {
+                alert(data.error || 'Erro ao excluir equipe');
+            }
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Erro ao excluir equipe');
+    }
 }
 
 function printTeamList() {
@@ -467,23 +573,6 @@ function printTeamList() {
                 }
                 th {
                     background-color: #f0f0f0;
-                    font-weight: bold;
-                    text-align: left;
-                }
-                .signatures {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 50px;
-                    margin-top: 100px;
-                }
-                .signature-box {
-                    border-top: 1px solid #000;
-                    padding-top: 10px;
-                    text-align: center;
-                }
-                .signature-label {
-                    font-weight: bold;
-                    margin-bottom: 5px;
                 }
                 .signature-line {
                     height: 30px;
@@ -541,6 +630,12 @@ function printTeamList() {
                 </div>
                 <div class="signature-box">
                     <div class="signature-line"></div>
+                    <div class="signature-label">Chefe de Delegação</div>
+                    <div style="font-weight: bold; margin-bottom: 2px;">${currentTeam.director || ''}</div>
+                    <div style="font-size: 12px;">${currentTeam.school_phone || ''}</div>
+                </div>
+                <div class="signature-box">
+                    <div class="signature-line"></div>
                     <div class="signature-label">Auxiliar Técnico</div>
                     <div style="font-size: 12px; color: #666;">Assinatura e Carimbo</div>
                 </div>
@@ -559,6 +654,19 @@ function printTeamList() {
     printWindow.document.close();
 }
 
+// View document - Opens in new tab
+function viewDocument(documentPath, studentName) {
+    if (!documentPath) {
+        Toast.error('Documento não disponível');
+        return;
+    }
+    
+    const fullPath = '../' + documentPath;
+    
+    // Open document in new tab
+    window.open(fullPath, '_blank');
+}
+
 // Filter listeners
 ['filterSchool', 'filterModality', 'filterCategory', 'filterGender'].forEach(id => {
     document.getElementById(id).addEventListener('change', applyFiltersAndRender);
@@ -567,6 +675,10 @@ function printTeamList() {
 // Close modal on outside click
 document.getElementById('teamModal').addEventListener('click', (e) => {
     if (e.target.id === 'teamModal') closeTeamModal();
+});
+
+document.getElementById('documentModal').addEventListener('click', (e) => {
+    if (e.target.id === 'documentModal') closeDocumentModal();
 });
 
 // Initialize
