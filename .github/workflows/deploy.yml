@@ -24,6 +24,8 @@ jobs:
           **/.git*
           **/.git*/**
           **/node_modules/**
+          config/config.php
+          config/config.production.php
           jem_deploy.zip
           test.php
           README.md
